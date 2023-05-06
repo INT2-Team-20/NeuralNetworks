@@ -6,3 +6,8 @@ data/flowers-102/imagelabels.mat
 data/flowers-102/setid.mat
 Flowers2-2.pth
 3rdlayertest.py
+Dropout03-Train95/Flowers8-763-56.pth
+BestFlowers8-540-585.pth
+droupout023-train87/Flowers8-391-54.pth
+*.pth
+Flowers102iteration9.py
