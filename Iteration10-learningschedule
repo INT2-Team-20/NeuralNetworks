@@ -5,23 +5,22 @@ import torchvision
 import torchvision.transforms as transforms
 import torch.optim.lr_scheduler as lr_scheduler
 
-epochs = 1000
+epochs = 3000
 
 trainingTransform = transforms.Compose(
     [
      transforms.RandomResizedCrop((224,224),(0.5, 1.0)), #got rid of initial resize and did randomrotation after cropping
-     transforms.RandomRotation(20),
+     transforms.RandomRotation(30),
      transforms.RandomHorizontalFlip(0.5),
-     transforms.RandomVerticalFlip(0.3),
-     transforms.ColorJitter(0.3, 0.025),
+     transforms.RandomVerticalFlip(0.2),
+     transforms.ColorJitter(brightness=(0.85,1.15),contrast=(0.85,1.15),saturation=(0.85,1.15)),
      transforms.ToTensor(),
      transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 
 testTransform = transforms.Compose(
     [
-     
-     transforms.CenterCrop(448), #started resizing after center crop
      transforms.Resize(224),
+     transforms.CenterCrop(224), #started resizing after center crop
      transforms.ToTensor(),
      transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 
@@ -105,66 +104,43 @@ def validAccuracyFunction():
 class NeuralN(nn.Module):
     def __init__(self):
         super().__init__()
-        self.Linear1 = nn.Linear(2048, 1024) 
-        self.Linear2 = nn.Linear(1024, 102)
+        self.Linear1 = nn.Linear(4608, 2048) 
+        self.Linear2 = nn.Linear(2048, 102)
         self.Dropout = nn.Dropout(0.125)
-        self.Conv1 = nn.Conv2d(3, 64, 5) 
+        self.Conv1 = nn.Conv2d(3, 64, 4, 2) 
         self.BNorm1 = nn.BatchNorm2d(64)
-        self.Conv2 = nn.Conv2d(64, 128, 5)
+        self.Conv2 = nn.Conv2d(64, 128, 4)
         self.BNorm2 = nn.BatchNorm2d(128) #added multiple layers following inspiration form popular machine learning models
-        self.Conv3 = nn.Conv2d(128, 256, 5,2)
+        self.Conv3 = nn.Conv2d(128, 256, 4)
         self.BNorm3 = nn.BatchNorm2d(256)
-        self.Conv4= nn.Conv2d(256,512,5,2)
+        self.Conv4= nn.Conv2d(256,512, 5, 3)
         self.BNorm4 = nn.BatchNorm2d(512)
         self.Pool = nn.MaxPool2d((2,2),(2,2))
         self.LReLU = nn.LeakyReLU()
 
     def forward(self, x):
-        #print(inputs.shape)
-        x = self.LReLU(self.BNorm1(self.Conv1(x))) #110
-       # print(x.shape)
-       # print("initil "+ str(x.size()))
+        x = self.LReLU(self.BNorm1(self.Conv1(x)))
+        x = self.Pool(x)
         x = self.Dropout(x)
-        x = self.Pool(x) #55
-        #print("first pool later "+str(x.size()))
         x = self.LReLU(self.BNorm2(self.Conv2(x))) 
-       # print(x.shape)
-        #print("before second pool later "+str(x.size()))
-        x = self.Pool(x) #27
-       # print("second pool later "+str(x.size()))
+        x = self.Pool(x)
         x = self.LReLU(self.BNorm3(self.Conv3(x))) 
-       # print(x.shape)
-
-        #print("before third pool later "+str(x.size()))
-        x = self.Pool(x)#13
-        #print("third pool later "+str(x.size()))
         x = self.LReLU(self.BNorm4(self.Conv4(x))) 
-       
-       # print("before fourth pool  "+str(x.size()))
+        x = self.Pool(x)
         x = self.Dropout(x)
-        x = self.Pool(x)# (5/5)
-       # print(x.shape)
-        #print("after fourth pool  "+str(x.size()))
-
-        # Flatten the tensor to a 1D tensor
         x = torch.flatten(x, start_dim=1)
-
-        # Reshape the tensor to size [24, 2048]
-       # print(x.shape)
-        #print("resieze"+ str(x))
         x = self.LReLU(self.Linear1(x))
-        x = self.Dropout(x)
         x = self.Linear2(x)
-       # print(x.shape)
         return x
 
 neuNet = NeuralN().to("cuda")
 
 criterion = nn.CrossEntropyLoss()
 optimizer = torch.optim.Adam(neuNet.parameters(),  0.00005 , weight_decay=0.01) #previous rate:0.00005  , 0.001
-scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.8)
+scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=75, gamma=0.75)
 bestAccuracy = 0
 bestTAccuracy = 0
+counter = 0
 for epoch in range(epochs):
     print(epoch)
     for i, (inputs,labels) in enumerate(trainingDataloader):
@@ -177,13 +153,27 @@ for epoch in range(epochs):
         optimizer.step()
 
     scheduler.step()
-    if epoch % 20 == 0:
-        validAccuracyFunction()
-        trainAccuracyFunction()
-        if validAccuracy > bestAccuracy:
-          bestAccuracy = validAccuracy
+    if ((epoch < 300) and (epoch % 50) == 0):
+        testAccuracyFunction()
+        if testAccuracy > bestTAccuracy:
+            bestTAccuracy = testAccuracy
+            name = './Flowers11-'+str(epoch)+'-'+str(round(testAccuracy))+'.pth'
+            torch.save(neuNet.state_dict(), name)
+
+    if ((epoch > 300) and (epoch % 18) == 0):
           testAccuracyFunction()
           if testAccuracy > bestTAccuracy:
-            bestAccuracy = bestTAccuracy
-            name = './Flowers8-'+str(epoch)+'.pth'
+            counter = 5
+            bestTAccuracy = testAccuracy
+            name = './Flowers11-'+str(epoch)+'-'+str(round(testAccuracy))+'.pth'
             torch.save(neuNet.state_dict(), name)
+
+    if counter > 0:
+        testAccuracyFunction()
+        if testAccuracy > bestTAccuracy:
+            counter = 5
+            bestTAccuracy = testAccuracy
+            name = './Flowers11-'+str(epoch)+'-'+str(round(testAccuracy))+'.pth'
+            torch.save(neuNet.state_dict(), name)
+        else:
+            counter = counter - 1
