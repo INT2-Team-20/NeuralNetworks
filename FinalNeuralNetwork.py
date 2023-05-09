@@ -9,7 +9,7 @@ epochs = 3000
 
 trainingTransform = transforms.Compose(
     [
-     transforms.RandomResizedCrop((224,224),(0.5, 1.0)), #got rid of initial resize and did randomrotation after cropping
+     transforms.RandomResizedCrop((224,224),(0.5, 1.0)),
      transforms.RandomRotation(30),
      transforms.RandomHorizontalFlip(0.5),
      transforms.RandomVerticalFlip(0.2),
@@ -20,7 +20,7 @@ trainingTransform = transforms.Compose(
 testTransform = transforms.Compose(
     [
      transforms.Resize(224),
-     transforms.CenterCrop(224), #started resizing after center crop
+     transforms.CenterCrop(224),
      transforms.ToTensor(),
      transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 
@@ -104,32 +104,36 @@ def validAccuracyFunction():
 class NeuralN(nn.Module):
     def __init__(self):
         super().__init__()
-        self.Linear1 = nn.Linear(4608, 2048) 
+        self.Linear1 = nn.Linear(12800, 2048)
         self.Linear2 = nn.Linear(2048, 102)
         self.Dropout = nn.Dropout(0.125)
-        self.Conv1 = nn.Conv2d(3, 64, 4, 2) 
+        self.Conv1 = nn.Conv2d(3, 64, 3, 1)
         self.BNorm1 = nn.BatchNorm2d(64)
-        self.Conv2 = nn.Conv2d(64, 128, 4)
-        self.BNorm2 = nn.BatchNorm2d(128) #added multiple layers following inspiration form popular machine learning models
-        self.Conv3 = nn.Conv2d(128, 256, 4)
+        self.Conv2 = nn.Conv2d(64, 128, 5, 1)
+        self.BNorm2 = nn.BatchNorm2d(128)
+        self.Conv3 = nn.Conv2d(128, 256, 5, 1)
         self.BNorm3 = nn.BatchNorm2d(256)
-        self.Conv4= nn.Conv2d(256,512, 5, 3)
+        self.Conv4= nn.Conv2d(256, 512, 5, 2)
         self.BNorm4 = nn.BatchNorm2d(512)
+        self.Conv5= nn.Conv2d(512, 512, 5, 2)
+        self.BNorm5 = nn.BatchNorm2d(512)
         self.Pool = nn.MaxPool2d((2,2),(2,2))
         self.LReLU = nn.LeakyReLU()
+        self.PReLU = nn.PReLU()
 
     def forward(self, x):
-        x = self.LReLU(self.BNorm1(self.Conv1(x)))
+        x = self.PReLU(self.BNorm1(self.Conv1(x)))
         x = self.Pool(x)
         x = self.Dropout(x)
-        x = self.LReLU(self.BNorm2(self.Conv2(x))) 
+        x = self.PReLU(self.BNorm2(self.Conv2(x)))
         x = self.Pool(x)
-        x = self.LReLU(self.BNorm3(self.Conv3(x))) 
-        x = self.LReLU(self.BNorm4(self.Conv4(x))) 
+        x = self.PReLU(self.BNorm3(self.Conv3(x)))
+        x = self.PReLU(self.BNorm4(self.Conv4(x)))
+        x = self.PReLU(self.BNorm5(self.Conv5(x)))
         x = self.Pool(x)
         x = self.Dropout(x)
         x = torch.flatten(x, start_dim=1)
-        x = self.LReLU(self.Linear1(x))
+        x = self.PReLU(self.Linear1(x))
         x = self.Linear2(x)
         return x
 
@@ -137,7 +141,7 @@ neuNet = NeuralN().to("cuda")
 
 criterion = nn.CrossEntropyLoss()
 optimizer = torch.optim.Adam(neuNet.parameters(),  0.00005 , weight_decay=0.01) #previous rate:0.00005  , 0.001
-scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=75, gamma=0.75)
+scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=80, gamma=0.8)
 bestAccuracy = 0
 bestTAccuracy = 0
 counter = 0
@@ -157,7 +161,7 @@ for epoch in range(epochs):
         testAccuracyFunction()
         if testAccuracy > bestTAccuracy:
             bestTAccuracy = testAccuracy
-            name = './Flowers11-'+str(epoch)+'-'+str(round(testAccuracy))+'.pth'
+            name = './Flowers12-'+str(epoch)+'-'+str(round(testAccuracy))+'.pth'
             torch.save(neuNet.state_dict(), name)
 
     if ((epoch > 300) and (epoch % 18) == 0):
@@ -165,7 +169,7 @@ for epoch in range(epochs):
           if testAccuracy > bestTAccuracy:
             counter = 5
             bestTAccuracy = testAccuracy
-            name = './Flowers11-'+str(epoch)+'-'+str(round(testAccuracy))+'.pth'
+            name = './Flowers12-'+str(epoch)+'-'+str(round(testAccuracy))+'.pth'
             torch.save(neuNet.state_dict(), name)
 
     if counter > 0:
@@ -173,7 +177,7 @@ for epoch in range(epochs):
         if testAccuracy > bestTAccuracy:
             counter = 5
             bestTAccuracy = testAccuracy
-            name = './Flowers11-'+str(epoch)+'-'+str(round(testAccuracy))+'.pth'
+            name = './Flowers12-'+str(epoch)+'-'+str(round(testAccuracy))+'.pth'
             torch.save(neuNet.state_dict(), name)
         else:
             counter = counter - 1

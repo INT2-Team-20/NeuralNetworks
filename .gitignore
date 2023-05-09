@@ -9,7 +9,6 @@ Flowers2-2.pth
 Dropout03-Train95/Flowers8-763-56.pth
 BestFlowers8-540-585.pth
 droupout023-train87/Flowers8-391-54.pth
-*.pth
 Flowers102iteration9.py
 .idea/NeuralNetworks.iml
 .idea/inspectionProfiles/profiles_settings.xml
@@ -19,3 +18,4 @@ Flowers102iteration9.py
 Iteration10-learningschedule
 Iteration10-learningschedule
 visualise.py
+Previous Iterations\*.pth
